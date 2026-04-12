@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { readOAuthTokenFromUrl, readOAuthErrorFromUrl } from "../utils/oauth";
@@ -6,20 +6,32 @@ import { readOAuthTokenFromUrl, readOAuthErrorFromUrl } from "../utils/oauth";
 export default function AuthCallback() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
+
     const error = readOAuthErrorFromUrl();
     if (error) {
       console.error("OAuth Error:", error);
-      navigate("/login", { state: { error: `Authentication failed: ${error}` } });
+      navigate("/login", { state: { error: `Authentication failed: ${error}` }, replace: true });
       return;
     }
 
     const token = readOAuthTokenFromUrl();
     if (token) {
-      login({ token }).then(() => navigate("/"));
+      // Execute the login and then redirect
+      Promise.resolve(login({ token }))
+        .then(() => {
+          navigate("/", { replace: true });
+        })
+        .catch((err) => {
+          console.error("Login failed after oauth", err);
+          navigate("/login", { state: { error: "Login failed after authentication." }, replace: true });
+        });
     } else {
-      navigate("/", { state: { error: "No token received from authentication provider." } });
+      navigate("/", { state: { error: "No token received from authentication provider." }, replace: true });
     }
   }, [login, navigate]);
 
